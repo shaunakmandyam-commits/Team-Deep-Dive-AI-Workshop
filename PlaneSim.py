@@ -1,7 +1,7 @@
 from Plane import Plane, Airport
 
 class PlaneSim():
-    def __init__(self, scale, dt, width=800, height=800):
+    def __init__(self, scale, dt, width=800, height=600):
         self.width = width
         self.height = height
         self.x, self.y = self.to_scale(scale)

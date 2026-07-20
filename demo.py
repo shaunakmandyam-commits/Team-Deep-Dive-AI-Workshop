@@ -7,10 +7,10 @@ env = PlaneEnv(render_mode="human")
 
 # 2. Load your saved PPO model and bind it to the environment
 # (Do not instantiate a new PPO model first; call load directly on the class)
-model = PPO.load("plane_agent.zip", env=env)
+model = PPO.load("plane_agent", env=env)
 
 # 3. Run evaluation loops
-episodes = 500
+episodes = 5
 for episode in range(episodes):
     obs, info = env.reset()
     done = False

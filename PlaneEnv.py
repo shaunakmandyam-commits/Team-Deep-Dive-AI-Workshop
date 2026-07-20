@@ -166,7 +166,7 @@ class PlaneEnv(gym.Env):
 
             # We need to ensure that human-rendering occurs at the predefined framerate.
             # The following line will automatically add a delay to keep the framerate stable.
-            #self.clock.tick(1 / self.dt * 25)
+            self.clock.tick(1 / self.dt * 10)
     
     def world_to_screen(self,x, y):
         screen_x = (x / self.sim.x) * self.sim.width
