@@ -34,5 +34,5 @@ model = PPO(
     tensorboard_log="./tensorboard_logs/"
 )
 
-model.learn(total_timesteps=5_000_000, tb_log_name="plane_agent")
+model.learn(total_timesteps=1_000_000, tb_log_name="plane_agent")
 model.save("plane_agent")

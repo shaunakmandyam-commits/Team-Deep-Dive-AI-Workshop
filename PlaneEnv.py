@@ -17,11 +17,12 @@ class PlaneEnv(gym.Env):
         self.steps = 0
 
         self.observation_space = gym.spaces.Box(
-            low=np.array([-np.inf,-np.inf,0,-1,-1, 0,0], dtype=np.float32),
+            low=np.array([-np.inf,-np.inf,0,-1,-1,-1, 0,0], dtype=np.float32),
             high=np.array([
                 np.inf,
                 np.inf,
                 1.0,
+                1,
                 1,
                 1,
                 1,
@@ -36,6 +37,18 @@ class PlaneEnv(gym.Env):
     def observe(self):
         self.sim.plane.heading %= 360
         rad = np.deg2rad(self.sim.plane.heading)
+        dx = self.sim.plane.x - self.sim.airport.x
+        dy = self.sim.plane.y - self.sim.airport.y
+
+        # Get angle in radians (-pi to pi)
+        radians = np.arctan2(dy, dx)
+        
+        # Convert to degrees (-180 to 180)
+        degrees = np.degrees(radians)
+        
+        # Map to 0-360 range
+        deg = (degrees + 360) % 360
+        bearing_error = (deg - self.sim.plane.heading + 180) % 360 - 180
        # print(type(rad), rad)
         return np.array([
             self.sim.plane.x / self.sim.x,
@@ -43,6 +56,7 @@ class PlaneEnv(gym.Env):
             self.sim.plane.speed,
             np.sin(rad),
             np.cos(rad),
+            bearing_error / 180,
             self.sim.airport.x / self.sim.x,
             self.sim.airport.y / self.sim.y
         ], dtype=np.float32)
@@ -68,12 +82,12 @@ class PlaneEnv(gym.Env):
 
         
         truncated = self.steps > self.max_steps  
-        reward = (old_distance - new_distance) / (old_distance / 50)
+        reward = (old_distance - new_distance)
         terminated = bool(2 > new_distance)
         if terminated:
-            reward += 200
+            reward += 100
         if truncated:
-            reward -= 100
+            reward -= 50
         reward -= 10
 
         observation = self.observe()
@@ -81,7 +95,7 @@ class PlaneEnv(gym.Env):
             "steps": self.info()
         }
 
-        reward /= 200
+        reward /= 100
         
         return observation, reward, terminated, truncated, info
 
