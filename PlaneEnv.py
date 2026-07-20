@@ -1,5 +1,5 @@
 import math
-
+import pygame
 import gymnasium as gym
 import numpy as np
 from Plane import Plane, Airport
@@ -10,11 +10,14 @@ from PlaneSim import PlaneSim
 
 class PlaneEnv(gym.Env):
 
-    def __init__(self, scale=40/800, dt=1, max_seconds=600):
+    def __init__(self, scale=40/800, dt=1, max_seconds=600, render_mode = None):
         self.sim = PlaneSim(scale, dt)
         self.dt = dt
         self.max_steps = int(max_seconds / dt)
         self.steps = 0
+        self.render_mode = render_mode
+        self.window=None
+        self.clock=None
 
         self.observation_space = gym.spaces.Box(
             low=np.array([-np.inf,-np.inf,0,-1,-1,-1, 0,0], dtype=np.float32),
@@ -75,6 +78,8 @@ class PlaneEnv(gym.Env):
         for i in range(0, frequency):
             self.steps += 1
             self.sim.step()
+            if self.render_mode != None:
+                self.render()
             if self.sim.plane.distance(self.sim.airport.x, self.sim.airport.y) < 2:
                 break
         
@@ -137,4 +142,34 @@ class PlaneEnv(gym.Env):
     
 
     def render(self):
-        pass
+        if self.window is None and self.render_mode == "human":
+            pygame.init()
+            pygame.display.init()
+            self.window = pygame.display.set_mode(
+                (self.sim.width, self.sim.height)
+            )
+        if self.clock is None and self.render_mode == "human":
+            self.clock = pygame.time.Clock()
+
+        screen_plane_x, screen_plane_y = self.world_to_screen(self.sim.plane.x, self.sim.plane.y)
+        screen_airport_x, screen_airport_y = self.world_to_screen(self.sim.airport.x, self.sim.airport.y)
+
+        canvas = pygame.Surface((self.sim.width, self.sim.height))
+        canvas.fill((255, 255, 255))
+        pygame.draw.circle(canvas, (255, 0, 0), (screen_plane_x, screen_plane_y), 5)
+        pygame.draw.circle(canvas, (0, 255, 0), (screen_airport_x, screen_airport_y), 5)
+        if self.render_mode == "human":
+            # The following line copies our drawings from `canvas` to the visible window
+            self.window.blit(canvas, canvas.get_rect())
+            pygame.event.pump()
+            pygame.display.update()
+
+            # We need to ensure that human-rendering occurs at the predefined framerate.
+            # The following line will automatically add a delay to keep the framerate stable.
+            #self.clock.tick(1 / self.dt * 25)
+    
+    def world_to_screen(self,x, y):
+        screen_x = (x / self.sim.x) * self.sim.width
+        screen_y = ((self.sim.y - y) / self.sim.y) * self.sim.height
+        return screen_x, screen_y
+
