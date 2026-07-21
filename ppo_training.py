@@ -25,7 +25,10 @@ for i in range(10):
 
 
 
-model = PPO.load("plane_agent", env=env)
+model = PPO.load("plane_agent", env=env,
+                 learning_rate=0.0001,
+                 ent_coef=0.01
+                 )
 
-model.learn(total_timesteps=1_000_000, tb_log_name="plane_agent")
+model.learn(total_timesteps=2_000_000, tb_log_name="plane_agent")
 model.save("plane_agent")

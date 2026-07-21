@@ -10,7 +10,7 @@ env = PlaneEnv(render_mode="human")
 model = PPO.load("plane_agent", env=env)
 
 # 3. Run evaluation loops
-episodes = 5
+episodes = 55
 for episode in range(episodes):
     obs, info = env.reset()
     done = False
