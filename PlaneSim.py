@@ -1,3 +1,4 @@
+
 from Plane import Plane, Airport
 
 class PlaneSim():
@@ -9,8 +10,8 @@ class PlaneSim():
 
         self.plane : Plane = None
         self.airport : Airport = None
-        self.npcs = []
-        self.airports = []
+        self.npcs = Plane = None
+        self.airports = Airport = None
 
     def to_scale(self, scale):
         return 800 * scale, 600 * scale

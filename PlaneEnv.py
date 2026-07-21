@@ -93,7 +93,7 @@ class PlaneEnv(gym.Env):
             reward += 100
         if truncated:
             reward -= 50
-        reward -= 10
+        reward -= 15
 
         observation = self.observe()
         info = {
@@ -113,9 +113,8 @@ class PlaneEnv(gym.Env):
         y = self.sim.y / 2
         speed = 0.2
         heading = self.np_random.integers(0, 360)
-        
-        margin_x = self.np_random.integers(0, self.sim.x / 10)
-        margin_y = self.np_random.integers(0, self.sim.y / 10)
+        margin_x = self.np_random.uniform(0, self.sim.x / 10)
+        margin_y = self.np_random.uniform(0, self.sim.y / 10)
 
         if np.random.random() > 0.5:
             airport_x = margin_x
@@ -159,13 +158,9 @@ class PlaneEnv(gym.Env):
         pygame.draw.circle(canvas, (255, 0, 0), (screen_plane_x, screen_plane_y), 5)
         pygame.draw.circle(canvas, (0, 255, 0), (screen_airport_x, screen_airport_y), 5)
         if self.render_mode == "human":
-            # The following line copies our drawings from `canvas` to the visible window
             self.window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
             pygame.display.update()
-
-            # We need to ensure that human-rendering occurs at the predefined framerate.
-            # The following line will automatically add a delay to keep the framerate stable.
             self.clock.tick(1 / self.dt * 10)
     
     def world_to_screen(self,x, y):

@@ -25,14 +25,7 @@ for i in range(10):
 
 
 
-model = PPO(
-    "MlpPolicy",
-    env,
-    verbose=1,
-    learning_rate=0.0001,
-    ent_coef=0.001,
-    tensorboard_log="./tensorboard_logs/"
-)
+model = PPO.load("plane_agent", env=env)
 
 model.learn(total_timesteps=1_000_000, tb_log_name="plane_agent")
 model.save("plane_agent")
