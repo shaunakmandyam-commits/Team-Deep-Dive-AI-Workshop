@@ -88,7 +88,7 @@ class PlaneEnv(gym.Env):
         
         truncated = self.steps > self.max_steps  
         reward = (old_distance - new_distance)
-        terminated = bool(2 > new_distance)
+        terminated = bool(0.5 > new_distance)
         if terminated:
             reward += 100
         if truncated:

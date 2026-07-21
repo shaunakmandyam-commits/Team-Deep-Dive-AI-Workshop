@@ -8,10 +8,10 @@ class PlaneSim():
         self.x, self.y = self.to_scale(scale)
         self.dt = dt
 
-        self.plane : Plane = None
-        self.airport : Airport = None
-        self.npcs = Plane = None
-        self.airports = Airport = None
+        self.plane: Plane | None = None
+        self.airport: Airport | None = None
+        self.npcs: list[Plane] = []
+        self.airports: list[Airport] = []
 
     def to_scale(self, scale):
         return 800 * scale, 600 * scale
