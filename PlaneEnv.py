@@ -43,13 +43,10 @@ class PlaneEnv(gym.Env):
         dx = self.sim.plane.x - self.sim.airport.x
         dy = self.sim.plane.y - self.sim.airport.y
 
-        # Get angle in radians (-pi to pi)
         radians = np.arctan2(dy, dx)
         
-        # Convert to degrees (-180 to 180)
         degrees = np.degrees(radians)
         
-        # Map to 0-360 range
         deg = (degrees + 360) % 360
         bearing_error = (deg - self.sim.plane.heading + 180) % 360 - 180
        # print(type(rad), rad)
@@ -108,6 +105,9 @@ class PlaneEnv(gym.Env):
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
+        self.sim.planes.clear()
+        self.sim.airports.clear()
+
         self.steps = 0
         x = self.sim.x / 2
         y = self.sim.y / 2
@@ -149,7 +149,6 @@ class PlaneEnv(gym.Env):
             )
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
-
         screen_plane_x, screen_plane_y = self.world_to_screen(self.sim.plane.x, self.sim.plane.y)
         screen_airport_x, screen_airport_y = self.world_to_screen(self.sim.airport.x, self.sim.airport.y)
 
@@ -161,7 +160,7 @@ class PlaneEnv(gym.Env):
             self.window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
             pygame.display.update()
-            self.clock.tick(1 / self.dt * 10)
+            self.clock.tick(1 / self.dt * 100)
     
     def world_to_screen(self,x, y):
         screen_x = (x / self.sim.x) * self.sim.width
