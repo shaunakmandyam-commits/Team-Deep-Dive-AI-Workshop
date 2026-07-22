@@ -90,7 +90,7 @@ class PlaneEnv(gym.Env):
             reward += 100
         if truncated:
             reward -= 50
-        reward -= 15
+        reward -= 8
 
         observation = self.observe()
         info = {
@@ -141,6 +141,9 @@ class PlaneEnv(gym.Env):
     
 
     def render(self):
+
+        speed=100
+
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
@@ -160,7 +163,7 @@ class PlaneEnv(gym.Env):
             self.window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
             pygame.display.update()
-            self.clock.tick(1 / self.dt * 100)
+            self.clock.tick(1 / self.dt * speed)
     
     def world_to_screen(self,x, y):
         screen_x = (x / self.sim.x) * self.sim.width
