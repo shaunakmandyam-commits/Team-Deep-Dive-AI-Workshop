@@ -7,11 +7,14 @@ class Plane:
         self.name = name
         self.model = model
         self.capacity = capacity
-        self.x = x
-        self.y = y
+        self.position = np.array([x, y])
         self.altitude = altitude
         self.heading = heading
         self.speed = speed
+        
+
+        self.x = x
+        self.y = y
 
         self.target_speed = speed
         self.target_heading = heading
@@ -26,6 +29,21 @@ class Plane:
         self.altitude_pid = PID(Kp=1.0, Ki=0.1, Kd=0.05, setpoint=self.target_altitude)
         self.set_limits()
 
+    @property
+    def x(self):
+        return self.position[0]
+
+    @x.setter
+    def x(self, value):
+        self.position[0] = value
+
+    @property
+    def y(self):
+        return self.position[1]
+
+    @y.setter
+    def y(self, value):
+        self.position[1] = value
 
     def get_info(self):
         return (
@@ -35,8 +53,7 @@ class Plane:
         )
 
     def set_position(self, x, y):
-        self.x = x
-        self.y = y
+        self.position = np.array([x, y])
 
     def set_altitude(self, altitude):
         self.altitude = altitude
@@ -47,10 +64,14 @@ class Plane:
     def set_speed(self, speed):
         self.speed = speed
 
+    @property
+    def direction(self):
+        rad = np.radians(self.heading)
+        return np.array([np.cos(rad), np.sin(rad)])
+    
     def move(self, dt=1.0):
         self.autopilot_update(dt=dt)
-        self.x += self.speed * np.cos(np.radians(self.heading)) * dt
-        self.y += self.speed * np.sin(np.radians(self.heading)) * dt
+        self.position += self.direction * self.speed * dt
 
 
     def autopilot_update(self, dt=1.0):
