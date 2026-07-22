@@ -9,15 +9,19 @@ from PlaneSim import PlaneSim
 
 
 class PlaneEnv(gym.Env):
+    scale = 40/800
+    collision_distance=1
+    max_seconds=600
+    command_interval=60
 
-    def __init__(self, scale=40/800, dt=1, max_seconds=600, render_mode = None):
-        self.sim = PlaneSim(scale, dt)
+    def __init__(self, dt=1, render_mode = None, speed=1):
+        self.sim = PlaneSim(self.scale, dt)
         self.dt = dt
-        self.max_steps = int(max_seconds / dt)
         self.steps = 0
         self.render_mode = render_mode
         self.window=None
         self.clock=None
+        self.speed=speed
 
         self.observation_space = gym.spaces.Box(
             low=np.array([-np.inf,-np.inf,0,-1,-1,-1, 0,0], dtype=np.float32),
@@ -37,6 +41,14 @@ class PlaneEnv(gym.Env):
                                            high=np.array([1], dtype=np.float32),
                                            dtype=np.float32)
 
+    @property
+    def max_steps(self):
+        return int(self.max_seconds / self.dt)
+
+    @property 
+    def frequency(self):
+        return int(self.command_interval / self.dt)
+
     def observe(self):
         self.sim.plane.heading %= 360
         rad = np.deg2rad(self.sim.plane.heading)
@@ -49,7 +61,6 @@ class PlaneEnv(gym.Env):
         
         deg = (degrees + 360) % 360
         bearing_error = (deg - self.sim.plane.heading + 180) % 360 - 180
-       # print(type(rad), rad)
         return np.array([
             self.sim.plane.x / self.sim.x,
             self.sim.plane.y / self.sim.y,
@@ -70,27 +81,25 @@ class PlaneEnv(gym.Env):
         self.sim.act(heading)
 
         old_distance = self.sim.plane.distance(self.sim.airport.x, self.sim.airport.y)
-
-        frequency = int(60 / self.dt)
-        for i in range(0, frequency):
+        
+        for i in range(self.frequency):
             self.steps += 1
             self.sim.step()
             if self.render_mode != None:
                 self.render()
-            if self.sim.plane.distance(self.sim.airport.x, self.sim.airport.y) < 2:
+            if self.sim.plane.distance(self.sim.airport.x, self.sim.airport.y) < self.collision_distance:
                 break
         
         new_distance = self.sim.plane.distance(self.sim.airport.x, self.sim.airport.y)
-
         
         truncated = self.steps > self.max_steps  
         reward = (old_distance - new_distance)
-        terminated = bool(0.5 > new_distance)
+        terminated = bool(self.collision_distance > new_distance)
         if terminated:
             reward += 100
         if truncated:
             reward -= 50
-        reward -= 8
+        reward -= 15
 
         observation = self.observe()
         info = {
@@ -105,17 +114,19 @@ class PlaneEnv(gym.Env):
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
-        self.sim.planes.clear()
-        self.sim.airports.clear()
+        self.sim = PlaneSim(self.scale, self.dt)
 
         self.steps = 0
-        x = self.sim.x / 2
-        y = self.sim.y / 2
-        speed = 0.2
+        x = self.np_random.uniform(0, self.sim.x)
+        y = self.np_random.uniform(0, self.sim.y)
+        speed = self.np_random.uniform(0.05, 0.35)
         heading = self.np_random.integers(0, 360)
-        margin_x = self.np_random.uniform(0, self.sim.x / 10)
-        margin_y = self.np_random.uniform(0, self.sim.y / 10)
+        airport_x = self.np_random.uniform(0, self.sim.x)
+        airport_y = self.np_random.uniform(0, self.sim.y)
 
+       # margin_x = self.np_random.uniform(0, self.sim.x / 10)
+       # margin_y = self.np_random.uniform(0, self.sim.y / 10)
+        """
         if np.random.random() > 0.5:
             airport_x = margin_x
         else:
@@ -125,7 +136,7 @@ class PlaneEnv(gym.Env):
             airport_y = margin_y
         else:
             airport_y = self.sim.y - margin_y
-        
+        """
 
         plane = Plane("agent", "RL", 100, x, y, 0, heading, speed)
         airport = Airport(airport_x, airport_y)
@@ -141,8 +152,6 @@ class PlaneEnv(gym.Env):
     
 
     def render(self):
-
-        speed=100
 
         if self.window is None and self.render_mode == "human":
             pygame.init()
@@ -163,7 +172,7 @@ class PlaneEnv(gym.Env):
             self.window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
             pygame.display.update()
-            self.clock.tick(1 / self.dt * speed)
+            self.clock.tick(1 / self.dt * self.speed)
     
     def world_to_screen(self,x, y):
         screen_x = (x / self.sim.x) * self.sim.width
