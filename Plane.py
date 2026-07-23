@@ -2,7 +2,7 @@ from simple_pid import PID
 import numpy as np
 
 class Plane:
-    def __init__(self, name, model, capacity, x=0, y=0, altitude=0, heading=0, speed=0,
+    def __init__(self, name, model, capacity, x=0, y=0, altitude=0, heading=0, speed=0.2,
                   max_speed_change=5, max_heading_change=3, max_altitude_change=100):
         self.name = name
         self.model = model
@@ -11,6 +11,7 @@ class Plane:
         self.altitude = altitude
         self.heading = heading
         self.speed = speed
+        self.landed = False
         
 
         self.x = x
@@ -138,5 +139,20 @@ class Plane:
 class Airport():
 
     def __init__(self, x, y):
-        self.x = x
-        self.y = y
+        self.position = np.array([x,y])
+
+    @property
+    def x(self):
+        return self.position[0]
+
+    @x.setter
+    def x(self, value):
+        self.position[0] = value
+
+    @property
+    def y(self):
+        return self.position[1]
+
+    @y.setter
+    def y(self, value):
+        self.position[1] = value

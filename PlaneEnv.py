@@ -76,7 +76,7 @@ class PlaneEnv(gym.Env):
         return self.steps
     
     def step(self, action):
-        heading = float(action[0]) * 180
+        heading = action * 180
         heading = (self.sim.plane.heading + heading) % 360
         self.sim.act(heading)
 
@@ -140,7 +140,7 @@ class PlaneEnv(gym.Env):
 
         plane = Plane("agent", "RL", 100, x, y, 0, heading, speed)
         airport = Airport(airport_x, airport_y)
-        self.sim.reset(plane, airport)
+        self.sim.add(plane, airport)
 
         observation = self.observe()
         info = {

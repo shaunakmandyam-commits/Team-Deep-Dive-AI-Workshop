@@ -1,10 +1,14 @@
 import math
 import pygame
 import gymnasium as gym
+from gymnasium.spaces import Box, Dict, Sequence
 import numpy as np
 from Plane import Plane, Airport
 from PlaneSim import PlaneSim
 
+def angle_to_vector(angle):
+    rad = np.radians(angle)
+    return np.array([np.cos(rad), np.sin(rad)])
 
 class TwoPlanesEnv(gym.Env):
     """A simple environment with two independent plane sims.
@@ -13,186 +17,223 @@ class TwoPlanesEnv(gym.Env):
     Observation: concatenation of two plane observations (8 each) -> shape (16,)
     """
 
-    scale = 40/800
-    collision_distance = 1
+    scale = 80/800
+    inner_collision_distance = 1
+    outer_collision_distance = 2
+    airport_distance = 1
     max_seconds = 600
-    command_interval = 60
+    command_interval = 30
 
     def __init__(self, dt=1, render_mode=None, speed=1):
         self.dt = dt
-        self.render_mode = render_mode
-        self.speed = speed
-
-        # Two separate sims (each manages a single Plane + airport)
-        self.sim1 = PlaneSim(self.scale, dt)
-        self.sim2 = PlaneSim(self.scale, dt)
-
         self.steps = 0
-        self.window = None
-        self.clock = None
 
-        # Observations: plane_x, plane_y, speed, sin(rad), cos(rad), bearing_error/180, airport_x, airport_y (8 per plane)
-        low = np.array([0.0, 0.0, 0.0, -1.0, -1.0, -1.0, 0.0, 0.0] * 2, dtype=np.float32)
-        high = np.array([1.0] * 16, dtype=np.float32)
-        self.observation_space = gym.spaces.Box(low=low, high=high, dtype=np.float32)
+        
+        self.render_mode = render_mode
+        self.window=None
+        self.clock=None
+        self.speed=speed
+
+        # 0: dx, 1: dy, 2: speed, 3: sin heading, 4: cos heading, 5: bearing error, 6: distance to airport
+        # 0: dx, 1: dy, 2: other speed, 3: other sin, 4: other cos, 5: angle between planes, 6: distance,
+        # 7: other plane airport dx, 8: other plane airport dy
+        low_agent = np.array([-np.inf, -np.inf, 0.0, -1.0, -1.0, -1.0, -np.inf], dtype=np.float32)
+        low_other = np.array([-np.inf, -np.inf, 0.0, -1.0, -1.0, -1.0, -1.0, -np.inf, -np.inf], dtype=np.float32)
+        high_agent = np.array([np.inf, np.inf, 1.0, 1.0, 1.0, 1.0, np.inf], dtype=np.float32)
+        high_other = np.array([np.inf, np.inf, 1.0, 1.0, 1.0, 1.0, 1, np.inf, np.inf], dtype=np.float32)
+
+        self.observation_space = Dict({"agent": Box(np.tile(low_agent, (2,1)), np.tile(high_agent, (2,1)), shape=(2,7),dtype=np.float32),
+                                       "other": Box(np.tile(low_other, (2,1)), np.tile(high_other, (2,1)), shape=(2,9), dtype=np.float32)})
 
         # Two continuous actions (one per plane)
         self.action_space = gym.spaces.Box(low=np.array([-1.0, -1.0], dtype=np.float32),
                                            high=np.array([1.0, 1.0], dtype=np.float32),
                                            dtype=np.float32)
-
     @property
     def max_steps(self):
         return int(self.max_seconds / self.dt)
-
     @property
     def frequency(self):
         return int(self.command_interval / self.dt)
+    
+    def _plane_observation(self, index):
+        
+        width, height = self.sim.to_scale()
 
-    def _plane_observation(self, sim):
-        sim.plane.heading %= 360
-        rad = np.deg2rad(sim.plane.heading)
-        dx = sim.plane.x - sim.airport.x
-        dy = sim.plane.y - sim.airport.y
-        radians = np.arctan2(dy, dx)
-        degrees = np.degrees(radians)
-        deg = (degrees + 360) % 360
-        bearing_error = (deg - sim.plane.heading + 180) % 360 - 180
+        # 0: dx, 1: dy, 2: speed, 3: sin heading, 4: cos heading, 5: bearing error, 6: distance to airport
+        # 0: dx, 1: dy, 2: other speed, 3: other sin, 4: other cos, 5: angle between planes, 6: distance,
+        # 7: other plane airport dx, 8: other plane airport dy
+        plane1 = self.sim.planes[index]
+        agent = np.array([self.sim.d_pos[index][0] / width, 
+                          self.sim.d_pos[index][1] / height, 
+                          plane1.speed,
+                          plane1.direction[1],
+                          plane1.direction[0],
+                          ((self.sim.angle_to_airport[index] - self.sim.planes[index].heading + 180) % 360 - 180 ) / 180,
+                          self.sim.distance_to_airport[index]
+                          ], dtype=np.float32)
+        i2 = (index + 1) % 2
+        plane2 = self.sim.planes[i2]
+        other = np.array([self.sim.relative_positions[index][i2][0] / width,
+                          self.sim.relative_positions[index][i2][1] / height,
+                          plane2.speed,
+                          plane2.direction[1],
+                          plane2.direction[0],
+                          self.sim.angle_between_planes(index, i2) / 180,
+                          self.sim.distance_matrix[index][i2] / width,
+                          self.sim.d_pos[i2][0] / width, 
+                          self.sim.d_pos[i2][1] / height
+                          ], dtype=np.float32)
+        
+        return agent, other
+        
+    def _obs(self):
+        agent0, other0 = self._plane_observation(0)
+        agent1, other1 = self._plane_observation(1)
+        agent_obs = np.array([agent0, agent1])
+        other_obs = np.array([other0, other1])
+        return {"agent": agent_obs, "other": other_obs}
+    
+    def _info(self):
+        return {"steps": self.steps}
+    
+    def reset(self, *, seed = None, options = None):
+        super().reset(seed=seed, options=options)
+        self.steps = 0
+        self.sim = PlaneSim(self.scale, self.dt)
 
-        px = np.clip(sim.plane.x / sim.x, 0.0, 1.0)
-        py = np.clip(sim.plane.y / sim.y, 0.0, 1.0)
+        width, height = self.sim.to_scale()
+        small = min(width, height) / 2
+        midpoint = np.array([width / 2, height / 2])
 
-        return np.array([
-            px,
-            py,
-            sim.plane.speed,
-            np.sin(rad),
-            np.cos(rad),
-            bearing_error / 180.0,
-            sim.airport.x / sim.x,
-            sim.airport.y / sim.y
-        ], dtype=np.float32)
 
-    def observe(self):
-        obs1 = self._plane_observation(self.sim1)
-        obs2 = self._plane_observation(self.sim2)
-        return np.concatenate([obs1, obs2], axis=0)
+        distance_plane = self.np_random.uniform(small - 1, small)
+
+        airport_distance1 = self.np_random.uniform(small - 1, small)
+        airport_distance2 = self.np_random.uniform(small - 1, small) 
+
+
+        angle1 = self.np_random.uniform(0, 360)
+        angle2 = (angle1 + self.np_random.uniform(45, 270)) % 360
+
+        airport_angle1 = (angle1 + 180) % 360
+        airport_angle2 = (angle2 + 180) % 360
+
+        pos_plane1 = midpoint + distance_plane * angle_to_vector(angle1)
+        pos_plane2 = midpoint + distance_plane * angle_to_vector(angle2)
+
+        pos_airport1 = midpoint + airport_distance1 * angle_to_vector(airport_angle1)
+        pos_airport2 = midpoint + airport_distance2 * angle_to_vector(airport_angle2)
+
+        
+        self.sim.add(Plane("Plane1", "RL", 100,
+                            pos_plane1[0], pos_plane1[1], heading=self.np_random.uniform(0, 360)),
+                     Airport(pos_airport1[0], pos_airport1[1]))
+        self.sim.add(Plane("Plane2", "RL", 100,
+                            pos_plane2[0], pos_plane2[1], heading=self.np_random.uniform(0, 360)),
+                     Airport(pos_airport2[0], pos_airport2[1]))
+        """
+        self.sim.add(Plane("Plane1", "RL", 100,
+                            pos_plane1[0], pos_plane1[1], heading=self.np_random.uniform(0, 360)),
+                     Airport(pos_airport1[0], pos_airport1[1]))
+        self.sim.add(Plane("Plane2", "RL", 100,
+                            pos_airport2[0], pos_airport2[1], heading=airport_angle2),
+                     Airport(pos_airport2[0], pos_airport2[1]))
+        """
+        observation = self._obs()
+        info = self._info()
+
+        return observation, info
 
     def step(self, action):
-        # action expected shape (2,)
-        a0 = float(action[0])
-        a1 = float(action[1])
+        
+        heading = action * 90
+        heading = np.array([(plane.heading + angle) % 360 for plane, angle in zip(self.sim.planes, heading)])
+        self.sim.act(heading)
 
-        # scale heading delta to +/-30 degrees per command
-        h0 = (self.sim1.plane.heading + a0 * 30.0) % 360
-        h1 = (self.sim2.plane.heading + a1 * 30.0) % 360
+        old_distance_airports = self.sim.distance_to_airport
 
-        self.sim1.act(h0)
-        self.sim2.act(h1)
+        reward = 0
+        terminated = False
+        truncated = False
 
-        old_d0 = self.sim1.plane.distance(self.sim1.airport.x, self.sim1.airport.y)
-        old_d1 = self.sim2.plane.distance(self.sim2.airport.x, self.sim2.airport.y)
 
         for i in range(self.frequency):
             self.steps += 1
-            self.sim1.step()
-            self.sim2.step()
-            if self.render_mode is not None:
+            self.sim.step()
+
+            if self.render_mode != None:
                 self.render()
-            # stop early if any plane reaches its airport
-            if (self.sim1.plane.distance(self.sim1.airport.x, self.sim1.airport.y) < self.collision_distance
-                    or self.sim2.plane.distance(self.sim2.airport.x, self.sim2.airport.y) < self.collision_distance):
-                break
+            for plane, distance in zip(self.sim.planes, self.sim.distance_to_airport):
+                if distance < self.airport_distance and not plane.landed:
+                    if self.render_mode == "human": print(plane.name, "landed")
+                    plane.set_speed(0)
+                    plane.landed = True
+                    reward += 2
 
-        new_d0 = self.sim1.plane.distance(self.sim1.airport.x, self.sim1.airport.y)
-        new_d1 = self.sim2.plane.distance(self.sim2.airport.x, self.sim2.airport.y)
+            if np.any(self.sim.no_diagonal_distances < self.inner_collision_distance):
+                if self.render_mode == "human": print("collision")
+                #terminated = True
+                #reward -= 100
+                #break
 
-        # collision between planes
-        inter_plane_dist = math.hypot(self.sim1.plane.x - self.sim2.plane.x, self.sim1.plane.y - self.sim2.plane.y)
-        collision = inter_plane_dist < self.collision_distance
-
-        # Rewards: sum of distance reductions normalized by world size, small step penalty
-        world_scale = max(self.sim1.x, self.sim1.y)
-        reward = ((old_d0 - new_d0) + (old_d1 - new_d1)) / (world_scale if world_scale > 0 else 1.0)
-        reward -= 0.01
-
-        terminated = False
-        if collision:
-            reward -= 2.0
+        if len(self.sim.planes_not_landed) == 0:
+            if self.render_mode == "human": print("all landed")
             terminated = True
 
-        if new_d0 < self.collision_distance or new_d1 < self.collision_distance:
-            reward += 1.0
-            terminated = True
+        if self.steps > self.max_steps:
+            if self.render_mode == "human": print("timeout")
+            truncated = True
+            reward -= 1
 
-        truncated = self.steps > self.max_steps
-        if truncated:
-            reward -= 0.5
+        
+        new_distance_airports = self.sim.distance_to_airport
 
-        obs = self.observe()
-        info = {"steps": self.steps, "inter_plane_dist": inter_plane_dist}
-        return obs, float(reward), bool(terminated), bool(truncated), info
+        reward += np.sum(old_distance_airports - new_distance_airports) / 100
+        #reward -= np.sum(3 / np.maximum(self.sim.no_diagonal_distances, 1) ** 2)
+        reward -= 0.05
 
-    def reset(self, *, seed=None, options=None):
-        super().reset(seed=seed)
-        # re-create sims so internal state is clean
-        self.sim1 = PlaneSim(self.scale, self.dt)
-        self.sim2 = PlaneSim(self.scale, self.dt)
-        self.steps = 0
+        reward = float(reward)
 
-        # place planes in opposite halves and airports near edges
-        x1 = self.sim1.x * 0.25
-        y1 = self.sim1.y * 0.5
-        x2 = self.sim2.x * 0.75
-        y2 = self.sim2.y * 0.5
 
-        heading1 = int(self.np_random.integers(0, 360))
-        heading2 = int(self.np_random.integers(0, 360))
+        observation = self._obs()
+        info = self._info()
+        return observation, reward, terminated, truncated, info
 
-        speed = 0.2
-        plane1 = Plane("p1", "RL", 100, x1, y1, 0, heading1, speed)
-        plane2 = Plane("p2", "RL", 100, x2, y2, 0, heading2, speed)
-
-        airport1 = Airport(self.sim1.x * 0.05, self.sim1.y * 0.1)
-        airport2 = Airport(self.sim2.x * 0.95, self.sim2.y * 0.9)
-
-        self.sim1.reset(plane1, airport1)
-        self.sim2.reset(plane2, airport2)
-
-        obs = self.observe()
-        info = {"steps": self.steps}
-        return obs, info
-
+                    
     def render(self):
-        # reuse PlaneEnv rendering approach but draw both planes
+
+        width, height = self.sim.to_scale()
+
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
-            self.window = pygame.display.set_mode((self.sim1.width, self.sim1.height))
+            self.window = pygame.display.set_mode(
+                (self.sim.width, self.sim.height)
+            )
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
 
-        canvas = pygame.Surface((self.sim1.width, self.sim1.height))
+        canvas = pygame.Surface((self.sim.width, self.sim.height))
         canvas.fill((255, 255, 255))
 
-        def world_to_screen(sim, x, y):
-            sx = (x / sim.x) * sim.width
-            sy = ((sim.y - y) / sim.y) * sim.height
-            return int(sx), int(sy)
 
-        p1x, p1y = world_to_screen(self.sim1, self.sim1.plane.x, self.sim1.plane.y)
-        a1x, a1y = world_to_screen(self.sim1, self.sim1.airport.x, self.sim1.airport.y)
+        for plane in self.sim.planes_not_landed:
+            x, y = self.world_to_screen(plane.x, plane.y)
+            pygame.draw.circle(canvas, (255, 0, 0), (x, y), 5)
 
-        p2x, p2y = world_to_screen(self.sim2, self.sim2.plane.x, self.sim2.plane.y)
-        a2x, a2y = world_to_screen(self.sim2, self.sim2.airport.x, self.sim2.airport.y)
-
-        pygame.draw.circle(canvas, (255, 0, 0), (p1x, p1y), 5)
-        pygame.draw.circle(canvas, (0, 255, 0), (a1x, a1y), 5)
-        pygame.draw.circle(canvas, (0, 0, 255), (p2x, p2y), 5)
-        pygame.draw.circle(canvas, (255, 255, 0), (a2x, a2y), 5)
+        for airport in self.sim.airports:
+            x, y = self.world_to_screen(airport.x, airport.y)
+            pygame.draw.circle(canvas, (0, 255, 0), (x, y), 5)
 
         if self.render_mode == "human":
             self.window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
             pygame.display.update()
             self.clock.tick(1 / self.dt * self.speed)
+    
+    def world_to_screen(self,x, y):
+        width, height = self.sim.to_scale()
+        screen_x = (x / width) * self.sim.width
+        screen_y = ((height - y) / height) * self.sim.height
+        return screen_x, screen_y
