@@ -1,3 +1,4 @@
+#Importing all the neccessary libraries
 import math
 import numpy as np
 from PlaneEnv import PlaneEnv
@@ -25,7 +26,7 @@ for i in range(10):
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
-
+# Loads the saved model and runs it in the simulation 
 checkpoint = 100000
 checkpoint_callback = CheckpointCallback(
     save_freq=checkpoint,

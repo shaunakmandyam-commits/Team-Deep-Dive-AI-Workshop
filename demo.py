@@ -31,5 +31,5 @@ for episode in range(episodes):
 
     print(f"Episode {episode + 1} Cleared. Total Score: {score:.2f}", steps, env.sim.plane.speed)
 
-# 4. Clean up resources and close the rendering window
+
 env.close()

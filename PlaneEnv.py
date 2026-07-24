@@ -1,3 +1,4 @@
+#importing all necessary libraries
 import math
 import pygame
 import gymnasium as gym
@@ -6,13 +7,16 @@ from Plane import Plane, Airport
 from PlaneSim import PlaneSim
 
 
-
-
+"""
+Setting up the PlaneEnv class, which is a custom environment for the plane simulation. 
+The environment is simulating a plane trying to reach an airport while avoiding collisions but still able to reach the airport in an efficient way
+"""
 class PlaneEnv(gym.Env):
     scale = 40/800
     collision_distance=1
     max_seconds=600
     command_interval=60
+    # Initializing the PlaneEnv class with parameters that we need for the simulation
 
     def __init__(self, dt=1, render_mode = None, speed=1):
         self.sim = PlaneSim(self.scale, dt)
@@ -42,14 +46,14 @@ class PlaneEnv(gym.Env):
                                            dtype=np.float32)
 
     @property
-    def max_steps(self):
+    def max_steps(self): #This function returns the maximum steps we use in the simulation 
         return int(self.max_seconds / self.dt)
 
     @property 
-    def frequency(self):
+    def frequency(self): #This function returns the frequency of the simulation, which changes how fast the simulation runs
         return int(self.command_interval / self.dt)
 
-    def observe(self):
+    def observe(self): #This function returns the findings/observations of the simulation. We then use this data to train our model and make better decisions in future test runs
         self.sim.plane.heading %= 360
         rad = np.deg2rad(self.sim.plane.heading)
         dx = self.sim.plane.x - self.sim.airport.x
@@ -72,16 +76,16 @@ class PlaneEnv(gym.Env):
             self.sim.airport.y / self.sim.y
         ], dtype=np.float32)
 
-    def info(self):
+    def info(self): #This function returns the number of steps used in the simulation to track how long it took to reach the airport or if it crashed into the airport
         return self.steps
     
-    def step(self, action):
+    def step(self, action): #This function takes the data from the observations and uses it to make decisions on how to move the plane in the simulation
         heading = action * 180
         heading = (self.sim.plane.heading + heading) % 360
         self.sim.act(heading)
 
         old_distance = self.sim.plane.distance(self.sim.airport.x, self.sim.airport.y)
-        
+        # This section of code runs the simulation based on the frequency and also checks if the planes have collided with the airport or not
         for i in range(self.frequency):
             self.steps += 1
             self.sim.step()
@@ -91,7 +95,7 @@ class PlaneEnv(gym.Env):
                 break
         
         new_distance = self.sim.plane.distance(self.sim.airport.x, self.sim.airport.y)
-        
+        # This section calculates the reward for the agent. We give more points for getting closer to the airport and less points for getting further away or crashing or taking too long
         truncated = self.steps > self.max_steps  
         reward = (old_distance - new_distance)
         terminated = bool(self.collision_distance > new_distance)
@@ -112,7 +116,7 @@ class PlaneEnv(gym.Env):
 
 
 
-    def reset(self, *, seed=None, options=None):
+    def reset(self, *, seed=None, options=None): # Resets the simulation to a random state, which allows the agent to learn from different areas around the simulation
         super().reset(seed=seed)
         self.sim = PlaneSim(self.scale, self.dt)
 
@@ -151,7 +155,7 @@ class PlaneEnv(gym.Env):
     
     
 
-    def render(self):
+    def render(self): #Reneders the simulation in a pygame window
 
         if self.window is None and self.render_mode == "human":
             pygame.init()
@@ -174,7 +178,7 @@ class PlaneEnv(gym.Env):
             pygame.display.update()
             self.clock.tick(1 / self.dt * self.speed)
     
-    def world_to_screen(self,x, y):
+    def world_to_screen(self,x, y): #Converts the world coordinates of the simulation to screen coordinates for rendering in pygame
         screen_x = (x / self.sim.x) * self.sim.width
         screen_y = ((self.sim.y - y) / self.sim.y) * self.sim.height
         return screen_x, screen_y
