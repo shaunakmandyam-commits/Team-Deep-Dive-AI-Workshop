@@ -5,11 +5,11 @@ from TwoPlanesEnv import TwoPlanesEnv
 import numpy as np
 
 # 1. Initialize the environment with visual rendering enabled
-env = TwoPlanesEnv(render_mode="human", dt=1, speed=60)
+env = PlaneEnv(render_mode="human", dt=1, speed=60)
 
 # 2. Load your saved PPO model and bind it to the environment
 # (Do not instantiate a new PPO model first; call load directly on the class)
-model = PPO.load("two_plane_agent", env=env)
+model = PPO.load("plane_agent", env=env)
 
 # 3. Run evaluation loops
 episodes = 10

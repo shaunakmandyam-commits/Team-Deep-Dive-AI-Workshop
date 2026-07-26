@@ -138,7 +138,7 @@ class PlaneEnv(gym.Env):
             airport_y = self.sim.y - margin_y
         """
 
-        plane = Plane("agent", "RL", 100, x, y, 0, heading, speed)
+        plane = Plane("agent", "RL", 100, x, y, 0, heading, 0.2)
         airport = Airport(airport_x, airport_y)
         self.sim.add(plane, airport)
 
