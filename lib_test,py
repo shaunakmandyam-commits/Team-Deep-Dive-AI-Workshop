@@ -1,0 +1,5 @@
+
+from OnePlaneMultiAgent import OnePlaneMultiAgent
+env = OnePlaneMultiAgent(render_mode="human", dt=1, speed=120)
+
+print(env.action_spaces)
