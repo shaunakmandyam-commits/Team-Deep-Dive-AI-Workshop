@@ -6,3 +6,4 @@ simple-pid>=1.0.1
 ray[rllib]>=2.30.0
 torch>=2.3.0
 tensorboard
+imageio
