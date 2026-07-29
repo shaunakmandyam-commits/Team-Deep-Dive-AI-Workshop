@@ -64,8 +64,8 @@ class TwoPlanesEnv(gym.Env):
         # 0: dx, 1: dy, 2: other speed, 3: other sin, 4: other cos, 5: angle between planes, 6: distance,
         # 7: other plane airport dx, 8: other plane airport dy
         plane1 = self.sim.planes[index]
-        agent = np.array([self.sim.d_pos[index][0] / width, 
-                          self.sim.d_pos[index][1] / height, 
+        agent = np.array([self.sim.dp[index][0] / width, 
+                          self.sim.dp[index][1] / height, 
                           plane1.speed,
                           plane1.direction[1],
                           plane1.direction[0],
@@ -81,8 +81,8 @@ class TwoPlanesEnv(gym.Env):
                           plane2.direction[0],
                           self.sim.angle_between_planes(index, i2) / 180,
                           self.sim.distance_matrix[index][i2] / width,
-                          self.sim.d_pos[i2][0] / width, 
-                          self.sim.d_pos[i2][1] / height
+                          self.sim.dp[i2][0] / width, 
+                          self.sim.dp[i2][1] / height
                           ], dtype=np.float32)
         
         return agent, other
